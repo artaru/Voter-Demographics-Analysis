@@ -1,0 +1,738 @@
+---
+title: "A stastical analysis of voter demographics for the Liberal Party of Canada"
+author: "Artem Arutyunov, Shon Verch, and Leon Kalish (Group 55)"
+subtitle: ""
+date: December 7, 2020
+output: 
+  beamer_presentation:
+    theme: "Pittsburgh"
+    colortheme: "orchid"
+    fonttheme: "structurebold"
+    slide_level: 2
+    includes:
+      in_header: twocol_style.tex
+  pdf_document: default
+  word_document: default
+  html_document: default
+---
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+# Download twocol_style.tex (for rmarkdown formatting of columns)
+download.file("https://gist.githubusercontent.com/GalacticGlum/dd82424fa8023ddb71c2072abcd15aad/raw/57f03f51db23836bdb41cb54f3b2164cfe9a1d31/twocol_style.tex", "twocol_style.tex")
+
+# echo=FALSE will stop the code chunk from appearing in the knit document
+# warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
+library(tidyverse)
+library(broom)
+library(rpart)
+library(partykit)
+
+# Confusion matrix functionality
+library(caret)
+library(cvms)
+library(ggnewscale)
+
+# For neural network functionality
+library(keras)
+library(reticulate)
+# For creating dummy columns 
+library(fastDummies)
+
+# For SVM (support vector machine) functionality
+library("e1071")
+
+# the data is not in the csv form we usually use, but in an R format, .rds.
+# the following line saves it as ces19 and you can work with it as you're used to now
+ces19 <- readRDS("ces19.rds")
+
+set.seed(69)
+```
+
+```{r, eval=FALSE, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Install keras
+# You should only need to run this once.
+use_condaenv("tf")
+install_keras(method=c("conda"), conda="auto", version="default", tensorflow="gpu")
+```
+
+## Introduction
+
+A crucial set of information for any political strategist consists of voter demographics. A political party must know their current voter demographics to plan an effective campaign which will maximize voter behaviour in their favour.
+
+In this presentation, we conduct a statistical analysis of voter demographics for the purpose of advising the _Liberal Party of Canada_. We investigate the following research questions:
+
+1. **Are people who selected Liberal as their first choice to vote equally as likely to support more or less refugees?**
+
+2. **Does gender influence the median rating of Justin Trudeau?**
+
+3. **Can we predict voter behaviour based on traits such as age, gender, and marital status?**
+
+
+## Data Summary
+
+We used the data collected from the Canadian Election Study in 2019 (`ces19`), which consists of $37,822$ responses from online and phone surveys.
+
+**Variables used:**
+
+1. Vote choice (first choice to vote for): will be used to filter out people who are not voting for the Liberal Party, and to determine voting preference.
+
+2. Refugee (should Canada admit more refugees?): will be used to classify the opinion of the voters. If their answer is more refugees, then they are supporting the admission, if it is fewer refugees, then they are against the admission. Answers such as "same number of refugees" or "don't know/prefer not to", will be ignored because this opinion can not be classified as strictly positive or negative.
+
+
+## Research Question I
+
+Political parties should pay attention to the opinion of voters on important discussions that are present in Canadian society. One such issue regards immigrants and refugees.
+
+For this question, we examine whether Liberal voters are equally as likely to support or oppose policies regarding admitting more refugees into Canada.
+
+**Null hypothesis** ($H_0$): The proportion of voters whose first choice is the Liberal party who support more refugees is 50%.
+$$H_0: p_\text{more} = 0.5$$
+**Alternative hypothesis** ($H_1$): The proportion of voters whose first choice is the Liberal party who support more refugees is not 50%.
+$$H_1: p_\text{more} \neq 0.5$$
+where $p_\text{more}$ refers to the proportion of voters.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Filter ces19 data for observations where the votechoice variable is "Liberal Party" and add a "opinion" categorical variable indicating whether they support more ("Yes") or fewer refugees ("Yes"); neutral and ignored answers are not included.
+ces19_liberal_data <- ces19 %>%
+  group_by(votechoice) %>%
+  # Filter out NA values for "refugees"
+  filter(votechoice == "Liberal Party" && !is.na(refugees)) %>%
+  mutate(opinion = case_when(
+    refugees == "More refugees" ~ "Yes",
+    refugees == "Fewer refugees" ~ "No")) %>%
+  # Filter out NA values for "opinion"
+  filter(!is.na(opinion))
+
+# Compute the test statistic as the proportion of people whose opinion is "Yes".
+q1_test_stat <- ces19_liberal_data %>%
+  summarise(n = n(), prop_yes = sum(opinion == "Yes") / n) %>%
+  summarise(value = prop_yes)
+
+q1_test_stat <- as.numeric(q1_test_stat)
+q1_test_stat
+
+n_observations <- nrow(ces19_liberal_data) # number of observations
+null_hypothesis <- 0.5 # equally likely to support more refugees or not.
+
+q1_repetitions <- 10000
+simulated_stats <- rep(NA, q1_repetitions) # 10000 missing values to start
+
+# Run the simulation `q1_repetitions` times.
+for (i in 1:q1_repetitions){
+  sim_result <- sample(c("Yes", "No"), 
+                    size=n_observations,    
+                    prob=c(null_hypothesis, 1 - null_hypothesis),
+                    replace=TRUE)
+  p_yes <- sum(sim_result == "Yes") / n_observations
+  simulated_stats[i] <- p_yes; # add new value to vector of results
+}
+
+# Convert `simulated_stats` to tibble for plotting.
+sim <- tibble(prop_yes = simulated_stats)
+```
+## Statistical Methods
+
+To test the null hypothesis, we conducted a series of simulations in R.
+
+* To find the test statistic, the proportion of Liberal voters (i.e. first choice is Liberal) who support the admission of refugees was calculated ($\hat{p}_\text{more}=0.4242$).
+* To get a sampling distribution, we ran a test where we randomly sample a position ("support" or "oppose") with uniform probability for each voter. We repeated this test $10,000$ times. For each test, the proportion of positive answers was calculated.
+* The p-value was found by calculating the proportion of values in the estimated sampling distribution that are more or as extreme as the test statistic.
+
+## Results & Conclusions
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Plot sampling distribution
+distance_from_null_hypothesis = abs(null_hypothesis - q1_test_stat)
+# sim %>% ggplot(aes(x = prop_yes)) + 
+#   geom_histogram(bins = 20, colour = "black", fill = "grey") +
+#   geom_vline(xintercept=null_hypothesis + distance_from_null_hypothesis, colour="coral", size=1) +
+#   geom_vline(xintercept=null_hypothesis - distance_from_null_hypothesis, colour="coral", size=1) +
+#   theme_light() + 
+#   xlab("Proportion of people who support more refugees.") +
+#   ggtitle("Estimated Sampling Distribution")
+
+# compute p-value
+pvalue <- sim %>% 
+  filter(prop_yes >= null_hypothesis + distance_from_null_hypothesis |
+         prop_yes <= null_hypothesis - distance_from_null_hypothesis) %>%
+  summarise(p_value = n() / q1_repetitions)
+
+as.numeric(pvalue)
+```
+\begincols
+\begincol{0.6\textwidth}
+\begin{itemize}
+\item From our randomization test, we computed a $p$-value of $0$.
+\item Since $P=0<0.01$, the probability of observing a value \emph{at least as extreme} as the test statistic ($\hat{p}_\text{more}=0.4242$) is \emph{extremely} unlikely. We have \textit{very strong} evidence against the null hypothesis.
+\end{itemize}
+\vspace{1em}
+Therefore, we can conclude that the proportion of liberal party voters who support the policy is \textbf{not} $50\%$. In other words, this means that it is not equally likely for Liberal voters to take a random stance on the refugee issue.
+
+\endcol
+\begincol{0.4\textwidth}
+\fontsize{6}{7.2}\selectfont
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.height=3, fig.width=3, cache=TRUE}
+ggplot(data=ces19_liberal_data, aes(x=refugees)) +
+  geom_bar(color="black", fill="pink") +
+  ggtitle("Distribution of opinions (raw data)") +
+  theme_bw() +
+  theme(plot.title=element_text(size=8, face="bold")) +
+  labs(x="Opinion", y="Number of Responses")
+```
+\textbf{Figure 1}: the distribution of the original data. As we can see, the distribution of the raw data is consistent with our conclusions from the randomization test (that $p_\text{more}\neq 0.5$).
+
+\endcol
+\endcols
+
+## Research Question II {.t}
+
+\begincols
+\begincol{0.7\textwidth}
+For this question, we examine whether gender influences the median rating of party leader, Justin Trudeau?
+\vspace{1em}
+
+\textbf{Null hypothesis} ($H_0$): There is no difference between the median rating of Justin Trudeau (`lead_rating_23`) between men and women: $$H_0: \text{median}_\text{men}-\text{median}_\text{women} = 0.$$
+
+\textbf{Alternative hypothesis} ($H_1$): There is a difference between the median rating of Justin Trudeau (`lead_rating_23`) between men and women: $$H_1: \text{median}_\text{men}-\text{median}_\text{women} \neq 0.$$
+\endcol
+\begincol{0.3\textwidth}
+\fontsize{6}{7.2}\selectfont
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Download justin.png
+download.file("https://i.imgur.com/Nuvo6u1.png","justin.png", mode="wb")
+```
+![Justin Trudeau: Benevolent Party Leader and Prime Minister.](justin.png){width=80%}
+**Figure 2**: Justin Trudeau: Benevolent Party Leader and Prime Minister.
+
+\vspace{2em}
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Download scheer.png
+download.file("https://i.imgur.com/FmykiVq.png","scheer.png", mode="wb")
+```
+![Andrew Scheer.](scheer.png){width=80%}
+**Figure 3**: Opposing party leader, Andrew Scheer, drinks Neilson Dairy 2% skim milk.
+
+\endcol
+\endcols
+
+## Statistical Methods
+
+To test the null hypothesis, we conducted a series of simulations in R (similar to the method used in part A).
+
+* The test statistic is the difference between the median rating among men and the median rating among women: $$\hat{\text{median}}_\text{men}-\hat{\text{median}}_\text{women}=8.$$
+* To get a sampling distribution, we ran a test where we randomly shuffle the gender labels for each observation with uniform probability. We repeated this test $10,000$ times. For each test, the difference between the median ratings was calculated.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Get only observations where the lead_rating_23 variable is NOT NA and gender is "A man or "A woman women observations from the ces19 dataset.
+ces19_men_women <- ces19 %>% filter(!is.na(lead_rating_23) & (gender == "A man" | gender == "A woman"))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Suppress summarise info
+options(dplyr.summarise.inform = FALSE)
+
+test_stat <- ces19_men_women %>% 
+  group_by(gender) %>%
+  summarise(medians = median(lead_rating_23)) %>%
+  summarise(value = diff(medians))
+test_stat <- as.numeric(test_stat)
+test_stat
+
+q2_repetitions <- 1000;
+simulated_values <- rep(NA, q2_repetitions)
+
+for(i in 1:q2_repetitions){
+  simdata <- ces19_men_women %>% mutate(gender = sample(gender))
+  sim_value <- simdata %>% group_by(gender) %>%
+    summarise(medians = median(lead_rating_23)) %>%
+    summarise(value = diff(medians))
+  simulated_values[i] <- as.numeric(sim_value)
+}
+
+sim <- tibble(median_diff = simulated_values)
+# sim %>% ggplot(aes(x=median_diff)) + geom_histogram(bins=10, color="black", fill="gray")
+
+# Calculate p-value
+num_more_extreme <- sim %>% filter(abs(median_diff) >= abs(test_stat)) %>% summarise(n())
+
+p_value <- as.numeric(num_more_extreme / q2_repetitions)
+p_value
+```
+
+## Results & Conclusions {.t}
+
+\begincols
+\begincol{0.4\textwidth}
+\fontsize{6}{7.2}\selectfont
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', fig.height=3, fig.width=3, cache=TRUE}
+ces19 %>% group_by(gender) %>%
+  summarise(count=n(), prop=count / nrow(ces19_men_women))
+
+ggplot(aes(y=lead_rating_23, x=gender), data=ces19_men_women) + 
+  geom_boxplot(color="black", fill="pink") +
+  ggtitle("Distribution of ratings (raw data)") +
+  theme_bw() +
+  theme(plot.title=element_text(size=8, face="bold")) +
+  labs(x="Gender", y="Rating of Trudeau (0-100)")
+```
+\textbf{Figure 4}: the distribution of ratings in the original data. The distribution of the raw data is consistent with our conclusions from the randomization test.
+\vspace{1em}
+\endcol
+\begincol{0.6\textwidth}
+\begin{itemize}
+\item From our randomization test, we computed a $p$-value of $0$.
+\item Since $P=0<0.01$, we have \textit{very strong} evidence against the null hypothesis.
+\item Therefore, we can conclude there \textbf{is} a difference of median rating of Justin Trudeau between men and women.
+\end{itemize}
+\endcol
+\endcols
+
+These results show that when campaigning and advertising, we should consider the gender of potential voters to better target their expectations of party leaders. If our data is representative of the real-world, according to Figure 4, this may suggest that on the whole, women rate Trudeau higher than men.
+
+## Research Question III
+
+Broadly speaking, are there certain traits that voters have that we can use to predict who they will vote for?
+Can age, gender, and marital status be used to predict a voter's choice? If we add more than those 3, will we have a clearer picture of predicted voter choice?
+
+For this question, we will focus our attention on predicting whether a voter will vote for the top two parties of Canada: the Liberals or Conservatives.
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE, fig.height=3, eval=FALSE}
+plot_data <- ces19 %>% filter(votechoice != "NA") %>% mutate(
+  votechoice=case_when(
+    grepl("Another party", as.character(votechoice)) ~ "Other",
+    TRUE ~ as.character(votechoice)
+  ))
+ggplot(data=plot_data, aes(x=votechoice)) +
+  geom_bar(color="black", fill="pink") +
+  ggtitle("Distribution of votechoice (raw data)") +
+  theme_bw() +
+  theme(plot.title=element_text(size=8, face="bold")) +
+  theme(axis.text.x = element_text(angle = -30, vjust=1, hjust=0)) +
+  labs(x="Party", y="Number of Responses")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Predict votechoice based on:
+# - age (dbl)
+# - gender (fct)
+# - province (fct)
+# - citizenship (fct)
+# - sexuality (fct)
+# - religion (fct)
+# - marital (fct)
+# - education (fct)
+# - union (fct)
+# - children (fct)
+# - spend_educ (fct)
+# - spend_env (fct)
+# - spend_just_law (fct)
+# - spend_defence (fct)
+# - spend_imm_min (fct)
+# - econ_retro (fct)
+# - econ_fed (fct)
+# - ownfinanc_fed (fct)
+# - imm (fct)
+# - refugees (fct)
+# - govt_confusing (fct)
+# - govt_say (fct)
+# - bornin_canada (fct)
+# - lib_promises (fct)
+# - groups_therm_1 (dbl): feeling about racial minorities
+# - groups_therm_2 (dbl): feeling about immigrants
+# - groups_therm_3 (dbl): feeling about francophone
+# - groups_therm_4 (dbl): feeling about feminists
+# - groups_therm_5 (dbl): feeling about politicians in general
+# - interest_gen_1 (dbl): interest in politics generally
+# - interest_elxn_1 (dbl): interest in this federal election
+#
+# A vector containing the column names of categorical variables to create dummy columns for.
+categorical_variables <- c("gender", "province", "citizenship", "sexuality", "religion",
+                           "marital", "education", "union", "children", "spend_educ",
+                           "spend_env", "spend_just_law", "spend_defence",
+                           "spend_imm_min", "econ_retro", "econ_fed", 
+                           "ownfinanc_fed", "imm", "refugees", "govt_confusing",
+                           "govt_say", "bornin_canada", "lib_promises")
+# A vector containing the column names of the predictor variables.
+predictor_variables <- c("age", "gender", "province", "citizenship", "sexuality",
+                         "religion", "marital", "education", "union", "children",
+                         "groups_therm_1", "groups_therm_2", "groups_therm_3",
+                         "groups_therm_4", "groups_therm_5", "interest_gen_1",
+                         "interest_elxn_1", "spend_educ", "spend_env",
+                         "spend_just_law", "spend_defence", "spend_imm_min",
+                         "econ_retro", "econ_fed", "ownfinanc_fed", "imm", "refugees",
+                         "govt_confusing", "govt_say", "bornin_canada", "lib_promises")
+feature_and_predictor_variables <- predictor_variables %>% append("votechoice")
+
+# Filter out all observations where no vote preferences was specified.
+# If votechoice is NA then second_choice_vote is used (if it is not NA).
+voter_data <- ces19 %>%
+  mutate(votechoice=case_when(
+    !is.na(votechoice) ~ votechoice,
+    is.na(votechoice) ~ second_choice_vote
+  )) %>%
+  select(all_of(feature_and_predictor_variables)) %>%
+  drop_na()
+
+voter_data <- voter_data %>% filter(
+  votechoice %in% c("Liberal Party",
+                    "Conservative Party")
+)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Split data into training and testing set
+n <- nrow(voter_data)
+training_indices <- sample(1:n, size=round(0.8 * n))
+# Adds a new ID column called rowid (if it doesn't already exist)
+if (!("rowid" %in% colnames(voter_data))) {
+  voter_data <- voter_data %>% rowid_to_column()
+}
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Create training dataset
+train_data <- voter_data %>% filter(rowid %in% training_indices)
+# Create testing dataset (all observations NOT in the training data)
+test_data <- voter_data %>% filter(!(rowid %in% training_indices))
+
+# Do some classification! Predict votechoice based on predictor_variables.
+# Programatically make the formula for the classification tree based on the column names in the predictor_variables vector.
+tree_formula <- formula(paste("votechoice ~ ", do.call(paste, c(as.list(predictor_variables), sep='+'))))
+tree <- rpart(
+  tree_formula,
+  data=train_data,
+  method="class"
+)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Simple function to calculate accuracy given a confusion matrix
+accuracy <- function(confusion_matrix) {
+  return(sum(diag(confusion_matrix)) / sum(confusion_matrix))
+}
+
+tree_pred <- predict(tree, newdata=test_data, type="class")
+# Calculate the CONFUSION MATRIX (I'M SO CONFUSED!)
+tree_confusion_matrix <- table("target"=test_data$votechoice, "prediction"=tree_pred)
+# Calculate accuracy
+tree_accuracy <- accuracy(tree_confusion_matrix)
+tree_accuracy
+
+tree_cm_tidy <- tidy(tree_confusion_matrix) %>%
+                filter(target %in% c("Liberal Party", "Conservative Party") &
+                       prediction %in% c("Liberal Party", "Conservative Party"))
+
+# confusionMatrix(tree_pred, test_data$votechoice, mode="everything")
+```
+
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+###################
+# STANDARDISE DATA
+###################
+
+# Convert the selected categorical variables to one-hot encoded vectors.
+voter_data_sd <- dummy_cols(voter_data,
+                            select_columns=categorical_variables,
+                            # Remove first dummy variable to K-1 categories.
+                            remove_first_dummy=TRUE,
+                            remove_selected_columns=TRUE)
+
+# Standardise numerical features to have a mean of 0 and standard deviation of 1
+voter_data_sd <- voter_data_sd %>%
+  mutate(
+    age=(age - mean(age)) / sd(age),
+    interest_gen_1=(interest_gen_1 - mean(interest_gen_1)) / sd(interest_gen_1),
+    interest_elxn_1=(interest_elxn_1 - mean(interest_elxn_1)) / sd(interest_elxn_1),
+    groups_therm_1=(groups_therm_1 - mean(groups_therm_1)) / sd(groups_therm_1),
+    groups_therm_2=(groups_therm_2 - mean(groups_therm_2)) / sd(groups_therm_2),
+    groups_therm_3=(groups_therm_3 - mean(groups_therm_3)) / sd(groups_therm_3),
+    groups_therm_4=(groups_therm_4 - mean(groups_therm_4)) / sd(groups_therm_4),
+    groups_therm_5=(groups_therm_5 - mean(groups_therm_5)) / sd(groups_therm_5)
+  )
+
+# Create training dataset
+train_data_sd <- voter_data_sd %>% filter(rowid %in% training_indices)
+# Create testing dataset (all observations NOT in the training data)
+test_data_sd <- voter_data_sd %>% filter(!(rowid %in% training_indices))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE, results='hide', eval=FALSE, cache=TRUE}
+#############################
+# SVM HYPERPARAMETER SEARCH
+#############################
+
+# NOTE: Run this chunk to find optimal SVM hyperparameters (it is potentially slow!)
+# Peform hyperparameters tuning on the SVM on a subsample of the training data
+# We will use 25% of the training data
+sub_train_data_sd <- train_data_sd[sample(1:nrow(train_data_sd), size=round(0.25 * nrow(train_data_sd))),]
+svm_tune <- tune.svm(votechoice ~ . - rowid,
+                     data=sub_train_data_sd,
+                     kernel="radial",
+                     cost=10^(-3:1),
+                     gamma=10^(-5:-1))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Optimal parameters found from svm_tune
+# Note: we hardcoded this so that we don't have to re-run the svm tuning everytime.
+BEST_SVM_GAMMA <- 0.01
+BEST_SVM_COST <- 10
+
+# Train the svm model
+svm <- svm(votechoice ~ . - rowid,
+           data=train_data_sd,
+           method="C-classification",
+           kernal="radial",
+           gamma=BEST_SVM_GAMMA,
+           cost=BEST_SVM_COST)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+svm_pred <- predict(svm, test_data_sd)
+svm_confusion_matrix <- table("target"=test_data_sd$votechoice, "prediction"=svm_pred)
+svm_accuracy <- accuracy(svm_confusion_matrix)
+svm_accuracy
+
+# confusionMatrix(svm_pred, test_data_sd$votechoice, mode="everything")
+svm_cm_tidy <- tidy(svm_confusion_matrix) %>%
+                filter(target %in% c("Liberal Party", "Conservative Party") &
+                       prediction %in% c("Liberal Party", "Conservative Party"))
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Remove rowid from the dataset (which was used for splitting the data for fitting the tree)
+if ("rowid" %in% colnames(voter_data_sd)) {
+  voter_data_sd <- voter_data_sd %>% select(-rowid)
+}
+
+# Extract the labels from the voter_data_sd as a factor object
+all_labels <- voter_data_sd$votechoice %>% as.factor() %>% unclass() - 1
+# Remove the votechoice columns from
+all_features <- voter_data_sd %>% 
+  select(-votechoice) %>%
+  as.matrix()
+
+# Create training dataset
+# Make a smaller matrix consisting of the rows with ids given by training_indices
+train_features <- all_features[training_indices,]
+train_labels <- all_labels[training_indices]
+
+# Create testing dataset (all observations NOT in the training data)
+test_features <- all_features[-training_indices,]
+test_labels <- all_labels[-training_indices]
+
+votechoice_levels <- levels(all_labels)
+levels(test_labels) <- votechoice_levels
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', eval=FALSE, cache=TRUE}
+# Load model from the saved checkpoint
+model <- load_model_tf("checkpoint_nn_weights_binary")
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, eval=FALSE, results='hide', cache=TRUE}
+# NOTE: This will train the network from scratch (this is a potentially very slow operation!).
+
+# Build the neural network classifier.
+# The model is fairly simple, consisting of fully connected/linear layers with a ReLU (rectified linear) activation function.
+# For the output, we use the softmax activation function to convert logits to probabilities (since we want to predict a probability distribution).
+# We train the model with cross entropy loss ("sparse_categorical_crossentropy" in TesnorFlow).
+dropout_rate <- 0.10
+regularizer <- regularizer_l1_l2()
+model <- keras_model_sequential()
+model %>%
+  # A Dense layer in Keras is equivalent to fully connected or linear
+  # Hidden layer 1
+  layer_dense(units=512,
+              kernel_regularizer=regularizer,
+              input_shape=dim(train_features)[2]) %>%
+  layer_batch_normalization() %>%
+  layer_activation("relu") %>%
+  layer_dropout(dropout_rate) %>%
+  # Hidden layer 2
+  layer_dense(units=256) %>%
+  layer_batch_normalization() %>%
+  layer_activation("relu") %>%
+  layer_dropout(dropout_rate) %>%
+  # Hidden layer 3
+  layer_dense(units=128) %>%
+  layer_batch_normalization() %>%
+  layer_activation("relu") %>%
+  layer_dropout(dropout_rate) %>%
+  # Output layer
+  layer_dense(units=length(votechoice_levels)) %>%
+  layer_batch_normalization() %>%
+  layer_activation("softmax")
+
+# Compile the model
+model %>% compile(optimizer="adam",
+                  loss="sparse_categorical_crossentropy",
+                  metrics=c("accuracy"))
+
+# TRAINING TIME!!!
+# Stop the model if validation loss does not increase for more than X epochs
+early_stop_callback <- callback_early_stopping(monitor="val_loss", patience=20)
+# Fit the model on the training features and labels pairs for N epochs.
+model %>% fit(train_features,
+              train_labels,
+              epochs=1000,
+              callbacks=c(early_stop_callback),
+              validation_split=0.10)
+```
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', eval=FALSE, cache=TRUE}
+# EVALUATION TIME!!!
+test_score <- model %>% evaluate(test_features, test_labels, verbose=FALSE)
+nn_accuracy <- getElement(test_score, "accuracy")
+nn_accuracy
+```
+
+## Statistical Methods
+
+We trained multiple classification models to predict voter choice (`votechoice`) based on the following variables:
+
+* `age`, `gender`, `province`, `citizenship`, `bornin_canada`
+* `sexuality`, `religion`, `marital`, `education`, `union`, `children`
+* `groups_therm_1` to `groups_therm_5`
+* `interest_gen_1`, `interest_elxn_1`
+* opinions on spending: `spend_educ`, `spend_env`, etc...
+* opinions on the economy: `econ_retro`, etc...
+* opinions on immigrants/refugees: `imm`, `refugees`
+* opinions on the government: `govt_confusing`, `govt_say`, and `lib_promises`.
+
+### Why so much data?
+To accurately train a classification model, we need sufficient predictors to distinguish voters of different parties.
+
+## Statistical Methods (cont'd.)
+
+\begincols
+\begincol{0.7\textwidth}
+\fontsize{9}{12.2}\selectfont
+The classification models were compared with one another on the basis of accuracy to find the most accurate model. We split the data into a training and test set (80/20), and then used them to train and evaluate the following models:
+
+* **Classification tree**: by asking TRUE/FALSE questions about the predictors, we can narrow down the set of possible outputs, and if we keep doing this, we will converge to a single answer. Formally, each ‘question’ is called a binary split.
+
+* **Neural Network**: a simplified model of the brain; mimics its structure with the hopes of finding relationships in the predictors (similar to that of a human).
+
+* **Support Vector Machine**: an approach for "dividing" our predictors into regions, one for each class of the output.
+
+\endcol
+\begincol{0.3\textwidth}
+\fontsize{6}{7.2}\selectfont
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Download svm.png
+download.file("https://i.imgur.com/jr6f5y3.png","svm.png", mode="wb")
+```
+![Support Vector Machine.](svm.png){width=80%}
+**Figure 4**: Visualisation of the support vector machine.
+\vspace{1em}
+```{r, echo=FALSE, message=FALSE, warning=FALSE, results='hide', cache=TRUE}
+# Download nn.png
+download.file("https://i.imgur.com/PYMma5p.png","nn.png", mode="wb")
+```
+![Simple Neural Network.](nn.png){width=80%}
+**Figure 5**: A simple neural network.
+\endcol
+\endcols
+
+## Results
+
+\begincols
+\begincol{0.6\textwidth}
+The table summarises the accuracy between the classification tree, neural network, and support vector machine. From the table, we see that the support vector machine marginally outperforms neural network, and both of them outperform the classification tree.
+
+| Model                      | Accuracy    |
+|----------------------------|-------------|
+| Classification Tree        | 0.8485096   |
+| Neural Network             | 0.8730094   |
+| **Support Vector Machine** | 0.8961002   |
+\endcol
+\begincol{0.4\textwidth}
+\fontsize{6}{7.2}\selectfont
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+plot_confusion_matrix(tree_cm_tidy,
+                      target_col="target",
+                      prediction_col="prediction",
+                      counts_col="n",
+                      add_sums=TRUE,
+                      palette="Reds",
+                      sums_settings=sum_tile_settings(
+                        label="Total",
+                        palette="Oranges"
+                      ),
+                      font_counts=font(
+                        size=8
+                      ),
+                      font_normalized=font(
+                        size=8
+                      ),
+                      font_row_percentages=font(
+                        size=6
+                      ),
+                      font_col_percentages=font(
+                        size=6
+                      ))
+```
+**Figure 6**: Confusion matrix for the classification tree.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
+plot_confusion_matrix(tree_cm_tidy,
+                      target_col="target",
+                      prediction_col="prediction",
+                      counts_col="n",
+                      add_sums=TRUE,
+                      palette="Blues",
+                      sums_settings=sum_tile_settings(
+                        label="Total",
+                        palette="Greens"
+                      ),
+                      font_counts=font(
+                        size=8
+                      ),
+                      font_normalized=font(
+                        size=8
+                      ),
+                      font_row_percentages=font(
+                        size=6
+                      ),
+                      font_col_percentages=font(
+                        size=6
+                      ))
+```
+**Figure 7**: Confusion matrix for the support vector machine.
+
+\endcol
+\endcols
+```{r, echo=FALSE, message=FALSE, warning=FALSE, fig.height=3, eval=FALSE, cache=TRUE}
+library(rpart.plot)
+plot(as.party(tree), type="simple", gp=gpar(cex=0.5))
+#rpart.plot(tree, type=5)
+```
+
+
+## Conclusion
+Our results showed that the support vector machine outperforms the other two models; however, all three models we tested scored fairly high in terms of accuracy. This shows that we can predict voter choice based on traits such as age, gender, and marital status.
+
+### Limitations
+* For neural networks to perform well, and not overfit, we need enough data. Insufficient data (number of observations) was the biggest limitation. Hence, we could further improve the accuracy with more observations.
+
+* The classification tree is sensitive to noise (a small change in the data can cause a large change in the tree structure), making it an unstable classifier. 
+
+* Similarly, the support vector machine does not perform well when there is noise, and complex structure in the data (unpredictable interdependence).
+
+## Summary of Report & Future Insights
+
+1. Since the proportion of liberal party voters that support refugees is not 50%, the party should investigate to which direction the voters lean, to understand the stance that their voters are taking.
+
+2. The medians are different with the women in the data set favoring Justin Trudeau more than men do. The party needs to investigate why, and work towards decreasing the divide between sentiment among the genders.
+
+3. It is possible to predict which party a person will vote for based off of their traits, and the party needs to make sure they keep those that are already voting for them; however, the party should also reach out to the voters that could be swung over between parties.
+
+## References and Acknowledgements
+\fontsize{8}{10}\selectfont
+* [1]: Wikimedia Commons contributors, "File:Neural network example.svg," Wikimedia Commons, the free media repository, https://commons.wikimedia.org/w/index.php?title=File:Neural_network_example.svg&oldid=459217583 (accessed December 6, 2020). 
+
+* [2]: Wikimedia Commons contributors, "File:Kernel Machine.svg," Wikimedia Commons, the free media repository, https://commons.wikimedia.org/w/index.php?title=File:Kernel_Machine.svg&oldid=467887503 (accessed December 6, 2020). 
+
+* [3]: Selley, Chris. "Chris Selley: Could Scheer's Devotion to Big Dairy Finally Break the Supply Management Consensus?". National Post, July 19, 2019. https://nationalpost.com/opinion/chris-selley-could-scheers-devotion-to-big-dairy-finally-break-the-supply-management-consensus. 

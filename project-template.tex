@@ -1,0 +1,538 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+  ignorenonframetext,
+]{beamer}
+\usepackage{pgfpages}
+\setbeamertemplate{caption}[numbered]
+\setbeamertemplate{caption label separator}{: }
+\setbeamercolor{caption name}{fg=normal text.fg}
+\beamertemplatenavigationsymbolsempty
+% Prevent slide breaks in the middle of a paragraph
+\widowpenalties 1 10000
+\raggedbottom
+\setbeamertemplate{part page}{
+  \centering
+  \begin{beamercolorbox}[sep=16pt,center]{part title}
+    \usebeamerfont{part title}\insertpart\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{section page}{
+  \centering
+  \begin{beamercolorbox}[sep=12pt,center]{part title}
+    \usebeamerfont{section title}\insertsection\par
+  \end{beamercolorbox}
+}
+\setbeamertemplate{subsection page}{
+  \centering
+  \begin{beamercolorbox}[sep=8pt,center]{part title}
+    \usebeamerfont{subsection title}\insertsubsection\par
+  \end{beamercolorbox}
+}
+\AtBeginPart{
+  \frame{\partpage}
+}
+\AtBeginSection{
+  \ifbibliography
+  \else
+    \frame{\sectionpage}
+  \fi
+}
+\AtBeginSubsection{
+  \frame{\subsectionpage}
+}
+\usepackage{lmodern}
+\usepackage{amssymb,amsmath}
+\usepackage{ifxetex,ifluatex}
+\ifnum 0\ifxetex 1\fi\ifluatex 1\fi=0 % if pdftex
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math}
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usetheme[]{Pittsburgh}
+\usecolortheme{orchid}
+\usefonttheme{structurebold}
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\IfFileExists{bookmark.sty}{\usepackage{bookmark}}{\usepackage{hyperref}}
+\hypersetup{
+  pdftitle={A stastical analysis of voter demographics for the Liberal Party of Canada},
+  pdfauthor={Artem Arutyunov, Shon Verch, and Leon Kalish (Group 55)},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+\urlstyle{same} % disable monospaced font for URLs
+\newif\ifbibliography
+\usepackage{longtable,booktabs}
+\usepackage{caption}
+% Make caption package work with longtable
+\makeatletter
+\def\fnum@table{\tablename~\thetable}
+\makeatother
+\usepackage{graphicx,grffile}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\def\begincols{\begin{columns}}
+\def\begincol{\begin{column}}
+\def\endcol{\end{column}}
+\def\endcols{\end{columns}}
+
+\title{A stastical analysis of voter demographics for the Liberal Party of
+Canada}
+\author{Artem Arutyunov, Shon Verch, and Leon Kalish (Group 55)}
+\date{December 7, 2020}
+
+\begin{document}
+\frame{\titlepage}
+
+\begin{frame}{Introduction}
+\protect\hypertarget{introduction}{}
+
+A crucial set of information for any political strategist consists of
+voter demographics. A political party must know their current voter
+demographics to plan an effective campaign which will maximize voter
+behaviour in their favour.
+
+In this presentation, we conduct a statistical analysis of voter
+demographics for the purpose of advising the \emph{Liberal Party of
+Canada}. We investigate the following research questions:
+
+\begin{enumerate}
+\item
+  \textbf{Are people who selected Liberal as their first choice to vote
+  equally as likely to support more or less refugees?}
+\item
+  \textbf{Does gender influence the median rating of Justin Trudeau?}
+\item
+  \textbf{Can we predict voter behaviour based on traits such as age,
+  gender, and marital status?}
+\end{enumerate}
+
+\end{frame}
+
+\begin{frame}[fragile]{Data Summary}
+\protect\hypertarget{data-summary}{}
+
+We used the data collected from the Canadian Election Study in 2019
+(\texttt{ces19}), which consists of \(37,822\) responses from online and
+phone surveys.
+
+\textbf{Variables used:}
+
+\begin{enumerate}
+\item
+  Vote choice (first choice to vote for): will be used to filter out
+  people who are not voting for the Liberal Party, and to determine
+  voting preference.
+\item
+  Refugee (should Canada admit more refugees?): will be used to classify
+  the opinion of the voters. If their answer is more refugees, then they
+  are supporting the admission, if it is fewer refugees, then they are
+  against the admission. Answers such as ``same number of refugees'' or
+  ``don't know/prefer not to'', will be ignored because this opinion can
+  not be classified as strictly positive or negative.
+\end{enumerate}
+
+\end{frame}
+
+\begin{frame}{Research Question I}
+\protect\hypertarget{research-question-i}{}
+
+Political parties should pay attention to the opinion of voters on
+important discussions that are present in Canadian society. One such
+issue regards immigrants and refugees.
+
+For this question, we examine whether Liberal voters are equally as
+likely to support or oppose policies regarding admitting more refugees
+into Canada.
+
+\textbf{Null hypothesis} (\(H_0\)): The proportion of voters whose first
+choice is the Liberal party who support more refugees is 50\%.
+\[H_0: p_\text{more} = 0.5\] \textbf{Alternative hypothesis} (\(H_1\)):
+The proportion of voters whose first choice is the Liberal party who
+support more refugees is not 50\%. \[H_1: p_\text{more} \neq 0.5\] where
+\(p_\text{more}\) refers to the proportion of voters.
+
+\end{frame}
+
+\begin{frame}{Statistical Methods}
+\protect\hypertarget{statistical-methods}{}
+
+To test the null hypothesis, we conducted a series of simulations in R.
+
+\begin{itemize}
+\tightlist
+\item
+  To find the test statistic, the proportion of Liberal voters
+  (i.e.~first choice is Liberal) who support the admission of refugees
+  was calculated (\(\hat{p}_\text{more}=0.4242\)).
+\item
+  To get a sampling distribution, we ran a test where we randomly sample
+  a position (``support'' or ``oppose'') with uniform probability for
+  each voter. We repeated this test \(10,000\) times. For each test, the
+  proportion of positive answers was calculated.
+\item
+  The p-value was found by calculating the proportion of values in the
+  estimated sampling distribution that are more or as extreme as the
+  test statistic.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}{Results \& Conclusions}
+\protect\hypertarget{results-conclusions}{}
+
+\begincols
+\begincol{0.6\textwidth}
+\begin{itemize}
+\item From our randomization test, we computed a $p$-value of $0$.
+\item Since $P=0<0.01$, the probability of observing a value \emph{at least as extreme} as the test statistic ($\hat{p}_\text{more}=0.4242$) is \emph{extremely} unlikely. We have \textit{very strong} evidence against the null hypothesis.
+\end{itemize}
+\vspace{1em}
+
+Therefore, we can conclude that the proportion of liberal party voters
+who support the policy is \textbf{not} \(50\%\). In other words, this
+means that it is not equally likely for Liberal voters to take a random
+stance on the refugee issue.
+
+\endcol
+\begincol{0.4\textwidth}
+\fontsize{6}{7.2}\selectfont
+
+\includegraphics{project-template_files/figure-beamer/unnamed-chunk-5-1.pdf}
+\textbf{Figure 1}: the distribution of the original data. As we can see,
+the distribution of the raw data is consistent with our conclusions from
+the randomization test (that \(p_\text{more}\neq 0.5\)).
+
+\endcol
+\endcols
+
+\end{frame}
+
+\begin{frame}[fragile,t]{Research Question II}
+\protect\hypertarget{research-question-ii}{}
+
+\begincols
+\begincol{0.7\textwidth}
+
+For this question, we examine whether gender influences the median
+rating of party leader, Justin Trudeau? \vspace{1em}
+
+\textbf{Null hypothesis} (\(H_0\)): There is no difference between the
+median rating of Justin Trudeau (\texttt{lead\_rating\_23}) between men
+and women:
+\[H_0: \text{median}_\text{men}-\text{median}_\text{women} = 0.\]
+
+\textbf{Alternative hypothesis} (\(H_1\)): There is a difference between
+the median rating of Justin Trudeau (\texttt{lead\_rating\_23}) between
+men and women:
+\[H_1: \text{median}_\text{men}-\text{median}_\text{women} \neq 0.\]
+\endcol \begincol{0.3\textwidth} \fontsize{6}{7.2}\selectfont
+
+\includegraphics[width=0.8\textwidth,height=\textheight]{justin.png}
+\textbf{Figure 2}: Justin Trudeau: Benevolent Party Leader and Prime
+Minister.
+
+\vspace{2em}
+
+\includegraphics[width=0.8\textwidth,height=\textheight]{scheer.png}
+\textbf{Figure 3}: Opposing party leader, Andrew Scheer, drinks Neilson
+Dairy 2\% skim milk.
+
+\endcol
+\endcols
+
+\end{frame}
+
+\begin{frame}{Statistical Methods}
+\protect\hypertarget{statistical-methods-1}{}
+
+To test the null hypothesis, we conducted a series of simulations in R
+(similar to the method used in part A).
+
+\begin{itemize}
+\tightlist
+\item
+  The test statistic is the difference between the median rating among
+  men and the median rating among women:
+  \[\hat{\text{median}}_\text{men}-\hat{\text{median}}_\text{women}=8.\]
+\item
+  To get a sampling distribution, we ran a test where we randomly
+  shuffle the gender labels for each observation with uniform
+  probability. We repeated this test \(10,000\) times. For each test,
+  the difference between the median ratings was calculated.
+\end{itemize}
+
+\end{frame}
+
+\begin{frame}[t]{Results \& Conclusions}
+\protect\hypertarget{results-conclusions-1}{}
+
+\begincols
+\begincol{0.4\textwidth}
+\fontsize{6}{7.2}\selectfont
+
+\includegraphics{project-template_files/figure-beamer/unnamed-chunk-10-1.pdf}
+\textbf{Figure 4}: the distribution of ratings in the original data. The
+distribution of the raw data is consistent with our conclusions from the
+randomization test. \vspace{1em} \endcol \begincol{0.6\textwidth}
+
+\begin{itemize}
+\item From our randomization test, we computed a $p$-value of $0$.
+\item Since $P=0<0.01$, we have \textit{very strong} evidence against the null hypothesis.
+\item Therefore, we can conclude there \textbf{is} a difference of median rating of Justin Trudeau between men and women.
+\end{itemize}
+\endcol
+\endcols
+
+These results show that when campaigning and advertising, we should
+consider the gender of potential voters to better target their
+expectations of party leaders. If our data is representative of the
+real-world, according to Figure 4, this may suggest that on the whole,
+women rate Trudeau higher than men.
+
+\end{frame}
+
+\begin{frame}{Research Question III}
+\protect\hypertarget{research-question-iii}{}
+
+Broadly speaking, are there certain traits that voters have that we can
+use to predict who they will vote for? Can age, gender, and marital
+status be used to predict a voter's choice? If we add more than those 3,
+will we have a clearer picture of predicted voter choice?
+
+For this question, we will focus our attention on predicting whether a
+voter will vote for the top two parties of Canada: the Liberals or
+Conservatives.
+
+\end{frame}
+
+\begin{frame}[fragile]{Statistical Methods}
+\protect\hypertarget{statistical-methods-2}{}
+
+We trained multiple classification models to predict voter choice
+(\texttt{votechoice}) based on the following variables:
+
+\begin{itemize}
+\tightlist
+\item
+  \texttt{age}, \texttt{gender}, \texttt{province},
+  \texttt{citizenship}, \texttt{bornin\_canada}
+\item
+  \texttt{sexuality}, \texttt{religion}, \texttt{marital},
+  \texttt{education}, \texttt{union}, \texttt{children}
+\item
+  \texttt{groups\_therm\_1} to \texttt{groups\_therm\_5}
+\item
+  \texttt{interest\_gen\_1}, \texttt{interest\_elxn\_1}
+\item
+  opinions on spending: \texttt{spend\_educ}, \texttt{spend\_env},
+  etc\ldots{}
+\item
+  opinions on the economy: \texttt{econ\_retro}, etc\ldots{}
+\item
+  opinions on immigrants/refugees: \texttt{imm}, \texttt{refugees}
+\item
+  opinions on the government: \texttt{govt\_confusing},
+  \texttt{govt\_say}, and \texttt{lib\_promises}.
+\end{itemize}
+
+\begin{block}{Why so much data?}
+
+To accurately train a classification model, we need sufficient
+predictors to distinguish voters of different parties.
+
+\end{block}
+
+\end{frame}
+
+\begin{frame}{Statistical Methods (cont'd.)}
+\protect\hypertarget{statistical-methods-contd.}{}
+
+\begincols
+\begincol{0.7\textwidth}
+\fontsize{9}{12.2}\selectfont
+
+The classification models were compared with one another on the basis of
+accuracy to find the most accurate model. We split the data into a
+training and test set (80/20), and then used them to train and evaluate
+the following models:
+
+\begin{itemize}
+\item
+  \textbf{Classification tree}: by asking TRUE/FALSE questions about the
+  predictors, we can narrow down the set of possible outputs, and if we
+  keep doing this, we will converge to a single answer. Formally, each
+  `question' is called a binary split.
+\item
+  \textbf{Neural Network}: a simplified model of the brain; mimics its
+  structure with the hopes of finding relationships in the predictors
+  (similar to that of a human).
+\item
+  \textbf{Support Vector Machine}: an approach for ``dividing'' our
+  predictors into regions, one for each class of the output.
+\end{itemize}
+
+\endcol
+\begincol{0.3\textwidth}
+\fontsize{6}{7.2}\selectfont
+
+\includegraphics[width=0.8\textwidth,height=\textheight]{svm.png}
+\textbf{Figure 4}: Visualisation of the support vector machine.
+\vspace{1em}
+
+\includegraphics[width=0.8\textwidth,height=\textheight]{nn.png}
+\textbf{Figure 5}: A simple neural network. \endcol \endcols
+
+\end{frame}
+
+\begin{frame}{Results}
+\protect\hypertarget{results}{}
+
+\begincols
+\begincol{0.6\textwidth}
+
+The table summarises the accuracy between the classification tree,
+neural network, and support vector machine. From the table, we see that
+the support vector machine marginally outperforms neural network, and
+both of them outperform the classification tree.
+
+\begin{longtable}[]{@{}ll@{}}
+\toprule
+Model & Accuracy\tabularnewline
+\midrule
+\endhead
+Classification Tree & 0.8485096\tabularnewline
+Neural Network & 0.8730094\tabularnewline
+\textbf{Support Vector Machine} & 0.8961002\tabularnewline
+\bottomrule
+\end{longtable}
+
+\endcol
+\begincol{0.4\textwidth}
+\fontsize{6}{7.2}\selectfont
+
+\includegraphics{project-template_files/figure-beamer/unnamed-chunk-26-1.pdf}
+\textbf{Figure 6}: Confusion matrix for the classification tree.
+
+\includegraphics{project-template_files/figure-beamer/unnamed-chunk-27-1.pdf}
+\textbf{Figure 7}: Confusion matrix for the support vector machine.
+
+\endcol
+\endcols
+
+\end{frame}
+
+\begin{frame}{Conclusion}
+\protect\hypertarget{conclusion}{}
+
+Our results showed that the support vector machine outperforms the other
+two models; however, all three models we tested scored fairly high in
+terms of accuracy. This shows that we can predict voter choice based on
+traits such as age, gender, and marital status.
+
+\begin{block}{Limitations}
+
+\begin{itemize}
+\item
+  For neural networks to perform well, and not overfit, we need enough
+  data. Insufficient data (number of observations) was the biggest
+  limitation. Hence, we could further improve the accuracy with more
+  observations.
+\item
+  The classification tree is sensitive to noise (a small change in the
+  data can cause a large change in the tree structure), making it an
+  unstable classifier.
+\item
+  Similarly, the support vector machine does not perform well when there
+  is noise, and complex structure in the data (unpredictable
+  interdependence).
+\end{itemize}
+
+\end{block}
+
+\end{frame}
+
+\begin{frame}{Summary of Report \& Future Insights}
+\protect\hypertarget{summary-of-report-future-insights}{}
+
+\begin{enumerate}
+\item
+  Since the proportion of liberal party voters that support refugees is
+  not 50\%, the party should investigate to which direction the voters
+  lean, to understand the stance that their voters are taking.
+\item
+  The medians are different with the women in the data set favoring
+  Justin Trudeau more than men do. The party needs to investigate why,
+  and work towards decreasing the divide between sentiment among the
+  genders.
+\item
+  It is possible to predict which party a person will vote for based off
+  of their traits, and the party needs to make sure they keep those that
+  are already voting for them; however, the party should also reach out
+  to the voters that could be swung over between parties.
+\end{enumerate}
+
+\end{frame}
+
+\begin{frame}{References and Acknowledgements}
+\protect\hypertarget{references-and-acknowledgements}{}
+
+\fontsize{8}{10}\selectfont
+
+\begin{itemize}
+\item
+  {[}1{]}: Wikimedia Commons contributors, ``\url{File:Neural} network
+  example.svg,'' Wikimedia Commons, the free media repository,
+  \url{https://commons.wikimedia.org/w/index.php?title=File:Neural_network_example.svg\&oldid=459217583}
+  (accessed December 6, 2020).
+\item
+  {[}2{]}: Wikimedia Commons contributors, ``\url{File:Kernel}
+  Machine.svg,'' Wikimedia Commons, the free media repository,
+  \url{https://commons.wikimedia.org/w/index.php?title=File:Kernel_Machine.svg\&oldid=467887503}
+  (accessed December 6, 2020).
+\item
+  {[}3{]}: Selley, Chris. ``Chris Selley: Could Scheer's Devotion to Big
+  Dairy Finally Break the Supply Management Consensus?''. National Post,
+  July 19, 2019.
+  \url{https://nationalpost.com/opinion/chris-selley-could-scheers-devotion-to-big-dairy-finally-break-the-supply-management-consensus}.
+\end{itemize}
+
+\end{frame}
+
+\end{document}
