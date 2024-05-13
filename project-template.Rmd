@@ -2,7 +2,7 @@
 title: "A stastical analysis of voter demographics for the Liberal Party of Canada"
 author: "Artem Arutyunov"
 subtitle: ""
-date: December 7, 2022
+date: December 7, 2023
 output: 
   beamer_presentation:
     theme: "Pittsburgh"
