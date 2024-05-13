@@ -18,7 +18,7 @@ output:
 
 ```{r, echo=FALSE, message=FALSE, warning=FALSE, cache=TRUE}
 # Download twocol_style.tex (for rmarkdown formatting of columns)
-download.file("https://gist.githubusercontent.com/GalacticGlum/dd82424fa8023ddb71c2072abcd15aad/raw/57f03f51db23836bdb41cb54f3b2164cfe9a1d31/twocol_style.tex", "twocol_style.tex")
+download.file("https://raw.githubusercontent.com/artaru/Voter-Demographics-Analysis/6414a8e0fb04212c850ac188c4b730b179dbc2b7/twocol_style.tex", "twocol_style.tex")
 
 # echo=FALSE will stop the code chunk from appearing in the knit document
 # warning=FALSE and message=FALSE will stop R messages from appearing in the knit document
